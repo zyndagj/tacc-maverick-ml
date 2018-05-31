@@ -69,6 +69,7 @@ RUN conda install --yes --no-update-deps \
         scipy \
         scikit-learn \
         pandas \
+        cython \
     && python -m ipykernel.kernelspec \
     && docker-clean && rm -rf ${CONDA_DIR}/pkgs/*
 
@@ -81,12 +82,12 @@ RUN echo "startup --batch" >>/etc/bazel.bazelrc
 #   https://github.com/bazelbuild/bazel/issues/418
 RUN echo "build --spawn_strategy=standalone --genrule_strategy=standalone" >>/etc/bazel.bazelrc
 # Install the most recent bazel release.
-ENV BAZEL_VERSION 0.11.0
+ENV BAZEL_VERSION 0.11.1
 ARG BAZEL_DIR=/opt/bazel
 ARG WEBSTR="User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36"
-RUN mkdir ${BAZEL_DIR} && cd ${BAZEL_DIR} && \
+RUN cd ${BAZEL_DIR} && \
     curl -H "${WEBSTR}" -fSsL -O https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-installer-linux-x86_64.sh && \
-    curl -H "${WEBSTR}" -fSsL -o ${BAZEL_DIR}/LICENSE.txt https://raw.githubusercontent.com/bazelbuild/bazel/master/LICENSE && \
+    curl -H "${WEBSTR}" -fSL -o ${BAZEL_DIR}/LICENSE.txt https://raw.githubusercontent.com/bazelbuild/bazel/master/LICENSE && \
     bash bazel-$BAZEL_VERSION-installer-linux-x86_64.sh && \
     cd / && rm -f ${BAZEL_DIR}/bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
 
@@ -99,15 +100,28 @@ ENV CI_BUILD_PYTHON=python \
 
 # Install TF
 RUN git clone https://github.com/tensorflow/tensorflow.git && \
-    cd tensorflow && git checkout v1.7.1 && \
+    cd tensorflow && git checkout v1.6.0 && \
+    sed -i 's/^#if TF_HAS_.*$/#if !defined(__NVCC__)/g' tensorflow/core/platform/macros.h && \
     ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
     ln -s /usr/local/cuda-8.0/nvvm/libdevice/libdevice.compute_50.10.bc /usr/local/cuda-8.0/nvvm/libdevice/libdevice.10.bc && \
     export LD_LIBRARY_PATH="/usr/local/cuda/lib64/stubs/:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64:${LD_LIBRARY_PATH}" && \
     tensorflow/tools/ci_build/builds/configured GPU \
-    bazel build -c opt --copt=-mavx --config=cuda \
-	--cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" \
+    bazel build -c opt --copt=-mavx --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" \
         tensorflow/tools/pip_package:build_pip_package && \
     bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/pip && \
     pip --no-cache-dir install /tmp/pip/tensorflow-*.whl && \
     cd / && rm -rf /tmp/pip /root/.cache /tensorflow && \
     docker-clean
+
+########################################
+# Install ML
+########################################
+
+# Install pytorch
+RUN pip install torch torchvision \
+    && docker-clean
+# Install keras
+RUN pip install keras \
+    && docker-clean
+# List packages
+RUN conda list -n base
