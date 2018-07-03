@@ -1,7 +1,7 @@
 #Image: gzynda/tacc-maverick-ml
-#Version: 0.0.1
+#Version: 0.0.2
 
-FROM gzynda/tacc-maverick-cuda8:latest
+FROM gzynda/tacc-maverick-cuda8:0.0.2
 
 ########################################
 # Configure environment
@@ -33,6 +33,7 @@ CMD ["bash"]
 RUN apt-get update \
     && apt-get install -yq --no-install-recommends \
         unzip wget bzip2 ca-certificates git \
+        libglib2.0-0 libxext6 libsm6 libxrender1 \
     && docker-clean
 
 # Add conda env variables
@@ -99,13 +100,15 @@ ENV CI_BUILD_PYTHON=python \
 
 # Install TF
 RUN git clone https://github.com/tensorflow/tensorflow.git && \
-    cd tensorflow && git checkout v1.7.1 && \
+    cd tensorflow && git checkout v1.8.0 && \
+    sed -i 's/^#if TF_HAS_.*$/#if !defined(__NVCC__)/g' tensorflow/core/platform/macros.h && \
     ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
     ln -s /usr/local/cuda-8.0/nvvm/libdevice/libdevice.compute_50.10.bc /usr/local/cuda-8.0/nvvm/libdevice/libdevice.10.bc && \
     export LD_LIBRARY_PATH="/usr/local/cuda/lib64/stubs/:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64:${LD_LIBRARY_PATH}" && \
     tensorflow/tools/ci_build/builds/configured GPU \
     bazel build -c opt --copt=-mavx --config=cuda \
 	--cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" \
+        --local_resources 6144,4.0,2.0 \
         tensorflow/tools/pip_package:build_pip_package && \
     bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/pip && \
     pip --no-cache-dir install /tmp/pip/tensorflow-*.whl && \
