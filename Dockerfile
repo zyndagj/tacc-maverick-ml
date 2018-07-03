@@ -70,6 +70,7 @@ RUN conda install --yes --no-update-deps \
         scipy \
         scikit-learn \
         pandas \
+        cython \
     && python -m ipykernel.kernelspec \
     && docker-clean && rm -rf ${CONDA_DIR}/pkgs/*
 
@@ -82,12 +83,12 @@ RUN echo "startup --batch" >>/etc/bazel.bazelrc
 #   https://github.com/bazelbuild/bazel/issues/418
 RUN echo "build --spawn_strategy=standalone --genrule_strategy=standalone" >>/etc/bazel.bazelrc
 # Install the most recent bazel release.
-ENV BAZEL_VERSION 0.11.0
+ENV BAZEL_VERSION 0.11.1
 ARG BAZEL_DIR=/opt/bazel
 ARG WEBSTR="User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36"
-RUN mkdir ${BAZEL_DIR} && cd ${BAZEL_DIR} && \
+RUN cd ${BAZEL_DIR} && \
     curl -H "${WEBSTR}" -fSsL -O https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-installer-linux-x86_64.sh && \
-    curl -H "${WEBSTR}" -fSsL -o ${BAZEL_DIR}/LICENSE.txt https://raw.githubusercontent.com/bazelbuild/bazel/master/LICENSE && \
+    curl -H "${WEBSTR}" -fSL -o ${BAZEL_DIR}/LICENSE.txt https://raw.githubusercontent.com/bazelbuild/bazel/master/LICENSE && \
     bash bazel-$BAZEL_VERSION-installer-linux-x86_64.sh && \
     cd / && rm -f ${BAZEL_DIR}/bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
 
@@ -114,3 +115,16 @@ RUN git clone https://github.com/tensorflow/tensorflow.git && \
     pip --no-cache-dir install /tmp/pip/tensorflow-*.whl && \
     cd / && rm -rf /tmp/pip /root/.cache /tensorflow && \
     docker-clean
+
+########################################
+# Install ML
+########################################
+
+# Install pytorch
+RUN pip install torch torchvision \
+    && docker-clean
+# Install keras
+RUN pip install keras \
+    && docker-clean
+# List packages
+RUN conda list -n base
